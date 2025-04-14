@@ -3,29 +3,37 @@ const express = require("express");
 const router = express.Router();
 const { sendSMS } = require("../util/sendSMS");
 
-let latestMessageParts = 0; // Track how many parts were sent in the last SMS
+/**
+ * GET /
+ * Renders the landing page (index.ejs)
+ */
+router.get("/", (req, res) => {
+  res.render("index"); // No need to pass status — alert will be handled in browser
+});
 
-// POST /send - handles sending SMS using the reusable sendSMS.js
-router.post("/send", async (req, res) => {
+/**
+ * POST /send-sms
+ * Handles SMS submission from form (AJAX POST)
+ * Returns JSON response with status message for alert()
+ */
+router.post("/send-sms", async (req, res) => {
   const { number, message } = req.body;
-
-  if (!number || !message) {
-    return res.status(400).send("⚠️ Phone number and message are required.");
-  }
 
   try {
     const result = await sendSMS(number, message);
-    latestMessageParts = result.parts || 1;
-    res.send("✅ SMS sent.");
-  } catch (error) {
-    console.error("❌ SMS send error:", error.message);
-    res.status(500).send(`❌ SMS send failed: ${error.message}`);
-  }
-});
 
-// GET /get-message-parts - returns how many message parts were sent
-router.get("/get-message-parts", (req, res) => {
-  res.json({ totalParts: latestMessageParts });
+    const statusMsg = result.success
+      ? result.retried
+        ? "✅ Message sent successfully, but some parts required retrying."
+        : `✅ Message sent successfully (${result.parts} part${result.parts > 1 ? "s" : ""})`
+      : "⚠️ Message could not be sent.";
+
+    // Respond with JSON — not rendering a new view
+    res.json({ status: statusMsg });
+
+  } catch (err) {
+    res.json({ status: `❌ ${err.message}` });
+  }
 });
 
 module.exports = router;

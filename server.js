@@ -1,31 +1,29 @@
 // server.js
 const express = require("express");
+const bodyParser = require("body-parser");
 const path = require("path");
-const smsRoutes = require("./routes/smsRoutes");
+const smsRoutes = require("./routes/smsRoutes"); // Router for SMS handling
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
 
-// Middleware to parse form data and JSON
-app.use(express.urlencoded({ extended: false }));
-app.use(express.json());
-
-// Set EJS as the view engine
+// View engine: EJS for rendering .ejs files in /views
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 
-// Serve static files (e.g., CSS/JS under /public if needed)
+// Parse form data (for URL-encoded forms, if needed)
+app.use(bodyParser.urlencoded({ extended: false }));
+
+// Parse JSON body (for AJAX fetch requests)
+app.use(express.json());
+
+// Serve static assets (e.g., CSS, images) from /public
 app.use(express.static(path.join(__dirname, "public")));
 
-// Register SMS routes (POST /send, GET /get-message-parts)
+// Register routes
 app.use("/", smsRoutes);
 
-// Route to render manual SMS form
-app.get("/manualsms", (req, res) => {
-  res.render("manualsms");
-});
-
-// Start server
+// Start the Express server
 app.listen(PORT, () => {
-  console.log(`✅ Server running at http://localhost:${PORT}`);
+  console.log(`🚀 Server is running at http://localhost:${PORT}`);
 });

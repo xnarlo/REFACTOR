@@ -1,50 +1,52 @@
-// utils/sendSMS.js
+// util/sendSMS.js
 const { serialPort, parser } = require("../serial");
 
-let smsStatus = null;           // Stores latest SMS status from Arduino
-let isProcessing = false;       // Prevents concurrent SMS sending
+let smsStatus = null;           // Tracks the latest SMS status received from Arduino
+let isProcessing = false;       // Prevents concurrent SMS processing
 
-// Listen for serial responses and update smsStatus accordingly
+// 🔄 Listen to Arduino's response messages (via Serial)
 parser.on("data", (data) => {
-  const trimmedData = data.trim();
-  if (["SMS_SENT", "SMS_FAILED"].includes(trimmedData)) {
-    smsStatus = trimmedData;
+  const trimmed = data.trim();
+  console.log("📥 Arduino says:", trimmed);
+
+  // Track SMS status so we can resolve/reject the promise
+  if (["SMS_SENT", "SMS_FAILED"].includes(trimmed)) {
+    smsStatus = trimmed;
   }
 });
 
 /**
- * Waits for either "SMS_SENT" or "SMS_FAILED" from Arduino.
- * Times out after 10 seconds.
+ * ⏳ Waits until the Arduino sends either "SMS_SENT" or "SMS_FAILED".
+ * Times out after 10 seconds if no valid response is received.
  */
 function waitForSmsSent() {
   return new Promise((resolve, reject) => {
-    let timeout = setTimeout(() => reject(new Error("Timeout waiting for SMS_SENT")), 10000);
-    let checkInterval = setInterval(() => {
+    const timeout = setTimeout(() => reject(new Error("⏱ Timeout waiting for SMS_SENT")), 10000);
+    const interval = setInterval(() => {
       if (smsStatus === "SMS_SENT") {
         clearTimeout(timeout);
-        clearInterval(checkInterval);
+        clearInterval(interval);
         smsStatus = null;
         resolve();
       } else if (smsStatus === "SMS_FAILED") {
         clearTimeout(timeout);
-        clearInterval(checkInterval);
+        clearInterval(interval);
         smsStatus = null;
-        reject(new Error("SMS sending failed"));
+        reject(new Error("❌ SMS_FAILED received from Arduino"));
       }
     }, 500);
   });
 }
 
 /**
- * Splits the message into parts, making sure not to break words.
- * Default part length: 150 characters.
- * Example result: ["This is part 1...", "This is part 2..."]
+ * 🧠 Splits a long message into segments no longer than 150 characters each.
+ * This prevents breaking messages mid-word and helps with multipart SMS.
  */
-function splitMessage(msg, maxLen = 150) {
+function splitMessage(message, maxLen = 150) {
   let parts = [];
   let currentPart = "";
 
-  msg.split(" ").forEach(word => {
+  message.split(" ").forEach(word => {
     if ((currentPart + word).length > maxLen) {
       parts.push(currentPart.trim());
       currentPart = word + " ";
@@ -53,7 +55,7 @@ function splitMessage(msg, maxLen = 150) {
     }
   });
 
-  if (currentPart.trim().length > 0) {
+  if (currentPart.trim()) {
     parts.push(currentPart.trim());
   }
 
@@ -61,55 +63,64 @@ function splitMessage(msg, maxLen = 150) {
 }
 
 /**
- * Sends SMS using the serial port, supporting multipart messages.
- * Automatically retries each part up to 3 times if failed.
- * Adds headers like (1/3), (2/3), etc., for multipart messages.
+ * 📤 Sends an SMS (or multipart SMS) via the Arduino-GSM module.
+ * Automatically retries each part up to 3 times if sending fails.
+ * Adds multipart headers (e.g. (1/3), (2/3)) when needed.
  */
 async function sendSMS(number, message) {
-  if (isProcessing) throw new Error("SMS is currently being processed");
-  isProcessing = true;
-
-  try {
-    const messageParts = splitMessage(message);             // Split long message
-    const isMultipart = messageParts.length > 1;
-
-    for (let i = 0; i < messageParts.length; i++) {
-      // Add "(1/3)", "(2/3)", etc., if multipart
-      let fullMessage = isMultipart
-        ? `(${i + 1}/${messageParts.length}) ${messageParts[i]}`
-        : messageParts[i];
-
-      let command = `SEND_SMS,${number},${fullMessage}\n`;
-      console.log(`Sending command: ${command}`);
-
-      let attempts = 0;
-      let sent = false;
-
-      // Retry sending this part up to 3 times
-      while (attempts < 3 && !sent) {
-        serialPort.write(command);
-        try {
-          await waitForSmsSent();  // Wait for "SMS_SENT"
-          sent = true;
-        } catch {
-          attempts++;
+    if (isProcessing) throw new Error("⚠️ SMS sending already in progress.");
+    isProcessing = true;
+  
+    let retried = false; // Will be true if any part had to retry
+  
+    try {
+      const messageParts = splitMessage(message);
+      const isMultipart = messageParts.length > 1;
+  
+      for (let i = 0; i < messageParts.length; i++) {
+        const partHeader = isMultipart ? `(${i + 1}/${messageParts.length}) ` : "";
+        const fullMessage = `${partHeader}${messageParts[i]}`;
+  
+        const command = `SEND_SMS,${number},${fullMessage}\n`;
+        console.log("📤 Sending command to Arduino:", command.trim());
+  
+        let attempts = 0;
+        let sent = false;
+  
+        while (attempts < 3 && !sent) {
+          serialPort.write(command, (err) => {
+            if (err) console.error("❌ Error writing to serial port:", err.message);
+          });
+  
+          try {
+            await waitForSmsSent();
+            sent = true;
+          } catch (err) {
+            console.warn(`⚠️ Part ${i + 1} failed (attempt ${attempts + 1})`);
+            attempts++;
+            retried = true;
+          }
         }
+  
+        if (!sent) {
+          throw new Error("Sending message failed. Check signal or load.");
+        }
+  
+        await new Promise(res => setTimeout(res, 2000)); // Delay between parts
       }
-
-      if (!sent) {
-        throw new Error(`Failed to send part ${i + 1}`);
-      }
-
-      // Delay between parts
-      await new Promise(res => setTimeout(res, 2000));
+  
+      return {
+        success: true,
+        parts: messageParts.length,
+        retried
+      };
+  
+    } catch (err) {
+      throw err;
+    } finally {
+      isProcessing = false;
     }
-
-    return { success: true, parts: messageParts.length };
-  } catch (err) {
-    throw err;
-  } finally {
-    isProcessing = false;
   }
-}
+  
 
 module.exports = { sendSMS };
