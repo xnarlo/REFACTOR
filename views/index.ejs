@@ -6,10 +6,26 @@
   <title>Send SMS via Arduino</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    body { font-family: Arial, sans-serif; max-width: 600px; margin: 2rem auto; }
-    form { display: flex; flex-direction: column; gap: 1rem; }
-    input, textarea, button { padding: 10px; font-size: 1rem; }
-    label { font-weight: bold; }
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 600px;
+      margin: 2rem auto;
+    }
+
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    input, textarea, button {
+      padding: 10px;
+      font-size: 1rem;
+    }
+
+    label {
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
@@ -23,34 +39,41 @@
     <label for="message">✉️ Message</label>
     <textarea id="message" name="message" rows="5" placeholder="Type your message here..." required></textarea>
 
-    <button type="submit">Send SMS</button>
+    <!-- Send button with ID -->
+    <button type="submit" id="sendBtn">Send SMS</button>
   </form>
 
-  <!-- Script to handle AJAX submission -->
+  <!-- JS to disable the button on submit + use correct POST route via AJAX -->
   <script>
     document.getElementById("smsForm").addEventListener("submit", async function (e) {
-      e.preventDefault(); // Prevent default page reload
+      e.preventDefault(); // Stop form from refreshing the page
 
-      const number = document.getElementById("number").value;
-      const message = document.getElementById("message").value;
+      const sendButton = document.getElementById("sendBtn");
+      sendButton.disabled = true; // Prevent double-click
+      sendButton.textContent = "Sending...";
+
+      const formData = new FormData(this);
+
+      const payload = {
+        number: formData.get("number"),
+        message: formData.get("message")
+      };
 
       try {
-        // Submit form via fetch to backend route
         const response = await fetch("/send-sms", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ number, message }),
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
         });
 
         const result = await response.json();
-
-        // Show result in alert box
-        alert(result.status);
-
+        alert(result.status); // Display server message
       } catch (err) {
-        alert("❌ Failed to send request to server.");
+        alert("❌ Failed to send. Please try again.");
+        console.error(err);
+      } finally {
+        sendButton.disabled = false;
+        sendButton.textContent = "Send SMS";
       }
     });
   </script>
