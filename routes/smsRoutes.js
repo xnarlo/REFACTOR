@@ -5,10 +5,18 @@ const { sendSMS } = require("../util/sendSMS");
 
 /**
  * GET /
- * Renders the landing page (index.ejs)
+ * Renders the dashboard page (index.ejs)
  */
 router.get("/", (req, res) => {
-  res.render("index"); // No need to pass status — alert will be handled in browser
+  res.render("index"); // this is the new dashboard
+});
+
+/**
+ * GET /manualsms
+ * Renders the manual SMS page
+ */
+router.get("/manualsms", (req, res) => {
+  res.render("manualsms"); // No need to pass status — alert will be handled in browser
 });
 
 /**

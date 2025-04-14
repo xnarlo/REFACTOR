@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Send SMS via Arduino</title>
+  <title>Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     body {
@@ -12,68 +12,35 @@
       margin: 2rem auto;
     }
 
-    form {
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
+    h1 {
+      text-align: center;
     }
 
-    input, textarea, button {
+    select {
+      width: 100%;
       padding: 10px;
       font-size: 1rem;
-    }
-
-    label {
-      font-weight: bold;
     }
   </style>
 </head>
 <body>
-  <h2>📤 Send SMS via Arduino GSM</h2>
+  <h1>Dashboard</h1>
 
-  <!-- SMS Sending Form -->
-  <form id="smsForm">
-    <label for="number">📱 Recipient Number</label>
-    <input type="text" id="number" name="number" placeholder="+639XXXXXXXXX" required>
+  <label for="viewSelector">Select a view:</label>
+  <select id="viewSelector">
+    <option value="">-- Choose an option --</option>
+    <option value="#">Option 1 (Coming Soon)</option>
+    <option value="#">Option 2 (Coming Soon)</option>
+    <option value="#">Option 3 (Coming Soon)</option>
+    <option value="#">Option 4 (Coming Soon)</option>
+    <option value="/manualsms">Manual SMS</option>
+  </select>
 
-    <label for="message">✉️ Message</label>
-    <textarea id="message" name="message" rows="5" placeholder="Type your message here..." required></textarea>
-
-    <!-- Send button with ID -->
-    <button type="submit" id="sendBtn">Send SMS</button>
-  </form>
-
-  <!-- JS to disable the button on submit + use correct POST route via AJAX -->
   <script>
-    document.getElementById("smsForm").addEventListener("submit", async function (e) {
-      e.preventDefault(); // Stop form from refreshing the page
-
-      const sendButton = document.getElementById("sendBtn");
-      sendButton.disabled = true; // Prevent double-click
-      sendButton.textContent = "Sending...";
-
-      const formData = new FormData(this);
-
-      const payload = {
-        number: formData.get("number"),
-        message: formData.get("message")
-      };
-
-      try {
-        const response = await fetch("/send-sms", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        });
-
-        const result = await response.json();
-        alert(result.status); // Display server message
-      } catch (err) {
-        alert("❌ Failed to send. Please try again.");
-        console.error(err);
-      } finally {
-        sendButton.disabled = false;
-        sendButton.textContent = "Send SMS";
+    document.getElementById("viewSelector").addEventListener("change", function () {
+      const selected = this.value;
+      if (selected) {
+        window.location.href = selected;
       }
     });
   </script>
